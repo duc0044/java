@@ -1,0 +1,17 @@
+{
+  "name": "Register User",
+  "request": {
+    "method": "POST",
+    "url": "http://localhost:8080/api/auth/register",
+    "header": [
+      {
+        "key": "Content-Type",
+        "value": "application/json"
+      }
+    ],
+    "body": {
+      "mode": "raw",
+      "raw": "{\n  \"email\": \"test@example.com\",\n  \"username\": \"testuser\",\n  \"password\": \"test123\"\n}"
+    }
+  }
+}
