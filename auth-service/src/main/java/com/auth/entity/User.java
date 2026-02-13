@@ -38,6 +38,9 @@ public class User {
     @Column(nullable = false, length = 50)
     private String roles = "ROLE_USER";
     
+    @Column(columnDefinition = "TEXT")
+    private String permissions;
+    
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

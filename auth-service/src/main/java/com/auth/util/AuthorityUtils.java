@@ -26,8 +26,10 @@ public class AuthorityUtils {
         ));
     }
 
-    public static Collection<String> getAuthorities(String rolesString) {
+    public static Collection<String> getAuthorities(String rolesString, String permissionsString) {
         Set<String> authorities = new HashSet<>();
+        
+        // Add role-based permissions
         if (rolesString != null && !rolesString.isEmpty()) {
             String[] roles = rolesString.split(",");
             for (String role : roles) {
@@ -38,6 +40,20 @@ public class AuthorityUtils {
                 }
             }
         }
+        
+        // Add direct permissions
+        if (permissionsString != null && !permissionsString.isEmpty()) {
+            String[] permissions = permissionsString.split(",");
+            for (String permission : permissions) {
+                authorities.add(permission.trim());
+            }
+        }
+        
         return authorities;
+    }
+    
+    // Default method for backward compatibility if needed, though we should update callers
+    public static Collection<String> getAuthorities(String rolesString) {
+        return getAuthorities(rolesString, null);
     }
 }

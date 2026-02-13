@@ -9,6 +9,13 @@ spring:
     gateway:
       routes:
         # Auth Endpoints
+        - id: auth-service-root
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/
+          filters:
+            - PreserveHostHeader=
+
         - id: auth-service-core
           uri: http://auth-service:8081
           predicates:

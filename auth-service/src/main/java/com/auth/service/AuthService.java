@@ -45,7 +45,7 @@ public class AuthService {
         user = userRepository.save(user);
         
         // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles(), user.getPermissions()));
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token in Redis
@@ -66,7 +66,7 @@ public class AuthService {
         }
         
         // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles(), user.getPermissions()));
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token in Redis
@@ -97,7 +97,7 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
         
         // Generate new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
+        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles(), user.getPermissions()));
         String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Update refresh token in Redis
@@ -154,6 +154,15 @@ public class AuthService {
     }
 
     public UserResponse createUser(RegisterRequest request) {
+        // Check permission
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        boolean hasPermission = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(com.auth.entity.Permission.USER_CREATE));
+
+        if (!hasPermission) {
+            throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền tạo người dùng");
+        }
+
         // reuse register logic but maybe different return? 
         // For now let's just use part of register logic
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -176,7 +185,7 @@ public class AuthService {
         if (request.getUsername() != null) user.setUsername(request.getUsername());
         if (request.getEmail() != null) user.setEmail(request.getEmail());
         
-        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+        if (request.getRoles() != null && !request.getRoles().isEmpty() && !request.getRoles().equals(user.getRoles())) {
             // Check if current user is ADMIN before allowing role change
             String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
             User currentUser = userRepository.findByEmail(currentEmail)
@@ -189,11 +198,33 @@ public class AuthService {
             user.setRoles(request.getRoles());
         }
         
+        if (request.getPermissions() != null && !java.util.Objects.equals(request.getPermissions(), user.getPermissions())) {
+             // Check if current user is ADMIN before allowing permission change
+            String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+            User currentUser = userRepository.findByEmail(currentEmail)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
+            
+            if (!currentUser.getRoles().contains("ROLE_ADMIN")) {
+                throw new RuntimeException("Bạn không có quyền thay đổi permissions");
+            }
+            user.setPermissions(request.getPermissions());
+        }
+        
         return mapToUserResponse(userRepository.save(user));
     }
 
     public void deleteUser(Long id) {
-        String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        
+        // Check permission
+        boolean hasPermission = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(com.auth.entity.Permission.USER_DELETE));
+
+        if (!hasPermission) {
+            throw new org.springframework.security.access.AccessDeniedException("Bạn không có quyền xóa người dùng");
+        }
+
+        String currentEmail = authentication.getName();
         User currentUser = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
         
@@ -210,6 +241,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .username(user.getUsername())
                 .roles(user.getRoles())
+                .permissions(user.getPermissions())
                 .build();
     }
 

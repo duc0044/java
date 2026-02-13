@@ -48,13 +48,6 @@ public class AuthController {
         authService.logout(token);
         return ResponseEntity.ok("Đăng xuất thành công");
     }
-    
-    // OAuth2 callback is now handled by CustomOAuth2SuccessHandler in SecurityConfig
-    
-    @GetMapping("/test")
-    public ResponseEntity<String> test() {
-        return ResponseEntity.ok("Auth Service is running!");
-    }
 
     @GetMapping("/me")
     public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal String email) {

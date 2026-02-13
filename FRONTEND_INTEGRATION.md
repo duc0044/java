@@ -22,7 +22,9 @@ Dưới đây là hướng dẫn chi tiết để Frontend (FE) tích hợp vớ
   "user": {
     "id": 1,
     "email": "user@example.com",
-    "username": "user123"
+    "username": "user123",
+    "roles": "ROLE_USER",
+    "permissions": null
   }
 }
 ```
@@ -65,8 +67,8 @@ Mọi request này yêu cầu đính kèm `accessToken` vào Authorization heade
 - Hệ thống hỗ trợ 2 roles mặc định: `ROLE_USER` và `ROLE_ADMIN`.
 - Cần có `ROLE_ADMIN` để truy cập các endpoint thống kê hệ thống.
 
-## 4. Phân quyền chi tiết (Granular CRUD)
-Hệ thống sử dụng cơ chế Authority-based thay vì chỉ Role-based đơn thuần. Token của user sẽ chứa danh sách các quyền cụ thể.
+## 4. Phân quyền chi tiết (Granular & Dynamic)
+Hệ thống sử dụng cơ chế **Dynamic Permission**: Quyền hạn của user là tập hợp của `Quyền theo Role` + `Quyền riêng lẻ (Direct Permissions)`.
 
 | Chức năng | Method | Endpoint | Quyền hạn (Authority) |
 | :--- | :--- | :--- | :--- |
@@ -74,6 +76,11 @@ Hệ thống sử dụng cơ chế Authority-based thay vì chỉ Role-based đ�
 | **Tạo mới** | `POST` | `/api/users` | `user:create` |
 | **Cập nhật** | `PUT` | `/api/users/{id}` | `user:update` |
 | **Xóa** | `DELETE` | `/api/users/{id}` | `user:delete` |
+
+**Cập nhật Quyền hạn (Admin Only):**
+API `PUT /api/users/{id}` hỗ trợ cập nhật `roles` và `permissions`.
+- Body: `{"roles": "ROLE_STAFF", "permissions": "user:create,user:update"}`
+- `permissions`: Chuỗi các quyền cách nhau bởi dấu phẩy.
 
 ### Query Parameters for GET `/api/users` (Pagination & Filter)
 | Parameter | Type | Default | Description |
@@ -87,8 +94,8 @@ Hệ thống sử dụng cơ chế Authority-based thay vì chỉ Role-based đ�
 ```json
 {
   "content": [
-    { "id": 1, "email": "...", "username": "...", "roles": "..." },
-    { "id": 2, "email": "...", "username": "...", "roles": "..." }
+    { "id": 1, "email": "...", "username": "...", "roles": "ROLE_USER", "permissions": null },
+    { "id": 2, "email": "...", "username": "...", "roles": "ROLE_STAFF", "permissions": "user:create" }
   ],
   "pageNumber": 0,
   "pageSize": 10,
@@ -98,9 +105,9 @@ Hệ thống sử dụng cơ chế Authority-based thay vì chỉ Role-based đ�
 }
 ```
 
-**Mapping mặc định:**
+**Mapping mặc định (Role-based):**
 - `ROLE_USER`: Chỉ có `user:read`.
-- `ROLE_STAFF`: Có `user:read`, `user:create`, `user:update` (Không có `user:delete`).
+- `ROLE_STAFF`: Mặc định chỉ có `user:read`, `user:update`. (Muốn có `user:create` phải gán thêm permission riêng).
 - `ROLE_ADMIN`: Có toàn bộ `user:read`, `user:create`, `user:update`, `user:delete`.
 
 ## 5. Quản lý Token (Best Practice)
@@ -145,3 +152,39 @@ api.interceptors.response.use(
   }
 );
 ```
+
+## 6. Ví dụ kịch bản phân quyền (Scenarios)
+
+### Kịch bản 1: Tạo nhân viên Sales (Chỉ xem)
+**Bước 1**: Admin tạo user hoặc user tự đăng ký.
+**Bước 2**: Admin set role là `ROLE_STAFF`.
+**Kết quả**: User này mặc định có quyền `user:read`, `user:update`. (Theo code AuthorityUtils).
+
+### Kịch bản 2: Nhân viên quản lý nhân sự (Cần thêm quyền tạo mới)
+Nhân viên A (`id=10`) đang là `ROLE_STAFF`. Admin muốn cho phép người này tạo user mới (mặc định Staff không có quyền này).
+
+**Request (Admin gọi):**
+```http
+PUT /api/users/10
+Content-Type: application/json
+Authorization: Bearer <admin_token>
+
+{
+  "permissions": "user:create"
+}
+```
+
+**Kết quả**:
+- User A khi đăng nhập sẽ có authorities: `user:read`, `user:update` (từ Role) + `user:create` (riêng).
+- User A gọi `POST /api/users` -> **Thành công**.
+
+### Kịch bản 3: Thu hồi quyền
+Nếu muốn thu hồi quyền tạo mới của User A, Admin gửi `permissions` là rỗng hoặc null.
+
+```http
+PUT /api/users/10
+{
+  "permissions": ""
+}
+```
+User A trở về quyền mặc định của `ROLE_STAFF`.
