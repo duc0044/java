@@ -5,6 +5,7 @@ import com.auth.dto.UserResponse;
 import com.auth.entity.AuthProvider;
 import com.auth.entity.User;
 import com.auth.repository.UserRepository;
+import com.auth.util.AuthorityUtils;
 import com.auth.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -40,7 +41,7 @@ public class OAuth2Service extends DefaultOAuth2UserService {
                 });
         
         // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId());
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token

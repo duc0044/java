@@ -1,17 +1,20 @@
 package com.auth.controller;
 
 import com.auth.dto.*;
+import com.auth.repository.UserRepository;
 import com.auth.service.AuthService;
 import com.auth.service.OAuth2Service;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -20,6 +23,7 @@ public class AuthController {
     
     private final AuthService authService;
     private final OAuth2Service oAuth2Service;
+    private final UserRepository userRepository;
     
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -50,5 +54,35 @@ public class AuthController {
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Auth Service is running!");
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal String email) {
+        var user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+        
+        return ResponseEntity.ok(UserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .roles(user.getRoles())
+                .build());
+    }
+
+    @GetMapping("/dashboard/summary")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<DashboardDTO> getDashboardSummary() {
+        DashboardDTO summary = DashboardDTO.builder()
+                .totalUsers(userRepository.count())
+                .activeSessions(5)
+                .systemHealth("Excellent")
+                .recentActivity(List.of(
+                    "User 'admin' logged in",
+                    "Database backup completed",
+                    "New user registered"
+                ))
+                .build();
+        
+        return ResponseEntity.ok(summary);
     }
 }

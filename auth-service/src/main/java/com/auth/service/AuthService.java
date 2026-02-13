@@ -4,6 +4,7 @@ import com.auth.dto.*;
 import com.auth.entity.AuthProvider;
 import com.auth.entity.User;
 import com.auth.repository.UserRepository;
+import com.auth.util.AuthorityUtils;
 import com.auth.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -44,7 +45,7 @@ public class AuthService {
         user = userRepository.save(user);
         
         // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId());
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token in Redis
@@ -65,7 +66,7 @@ public class AuthService {
         }
         
         // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId());
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token in Redis
@@ -96,7 +97,7 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
         
         // Generate new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId());
+        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles()));
         String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Update refresh token in Redis
@@ -129,6 +130,89 @@ public class AuthService {
         }
     }
     
+    public PageResponse<UserResponse> listUsers(String search, String role, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.jpa.domain.Specification<User> spec = (root, query, cb) -> {
+            java.util.List<jakarta.persistence.criteria.Predicate> predicates = new java.util.ArrayList<>();
+            
+            if (search != null && !search.isEmpty()) {
+                String searchPattern = "%" + search.toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("username")), searchPattern),
+                    cb.like(cb.lower(root.get("email")), searchPattern)
+                ));
+            }
+            
+            if (role != null && !role.isEmpty()) {
+                predicates.add(cb.like(root.get("roles"), "%" + role + "%"));
+            }
+            
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        org.springframework.data.domain.Page<User> userPage = userRepository.findAll(spec, pageable);
+        return PageResponse.fromPage(userPage, this::mapToUserResponse);
+    }
+
+    public UserResponse createUser(RegisterRequest request) {
+        // reuse register logic but maybe different return? 
+        // For now let's just use part of register logic
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email đã được sử dụng");
+        }
+        User user = User.builder()
+                .email(request.getEmail())
+                .username(request.getUsername())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .provider(AuthProvider.LOCAL)
+                .roles("ROLE_USER")
+                .build();
+        return mapToUserResponse(userRepository.save(user));
+    }
+
+    public UserResponse updateUser(Long id, UpdateUserRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+        
+        if (request.getUsername() != null) user.setUsername(request.getUsername());
+        if (request.getEmail() != null) user.setEmail(request.getEmail());
+        
+        if (request.getRoles() != null && !request.getRoles().isEmpty()) {
+            // Check if current user is ADMIN before allowing role change
+            String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+            User currentUser = userRepository.findByEmail(currentEmail)
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
+            
+            if (!currentUser.getRoles().contains("ROLE_ADMIN")) {
+                throw new RuntimeException("Bạn không có quyền thay đổi role");
+            }
+            
+            user.setRoles(request.getRoles());
+        }
+        
+        return mapToUserResponse(userRepository.save(user));
+    }
+
+    public void deleteUser(Long id) {
+        String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
+        
+        if (currentUser.getId().equals(id)) {
+            throw new RuntimeException("Bạn không thể tự xóa chính mình");
+        }
+        
+        userRepository.deleteById(id);
+    }
+
+    private UserResponse mapToUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .roles(user.getRoles())
+                .build();
+    }
+
     private void storeRefreshToken(String email, String refreshToken) {
         redisTemplate.opsForValue().set(
             "refresh_token:" + email,
@@ -139,12 +223,7 @@ public class AuthService {
     }
     
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
-        UserResponse userResponse = UserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .username(user.getUsername())
-                .roles(user.getRoles())
-                .build();
+        UserResponse userResponse = mapToUserResponse(user);
         
         return AuthResponse.builder()
                 .accessToken(accessToken)

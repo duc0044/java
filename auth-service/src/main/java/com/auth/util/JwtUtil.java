@@ -28,10 +28,11 @@ public class JwtUtil {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
     
-    public String generateAccessToken(String email, String username, Long userId) {
+    public String generateAccessToken(String email, String username, Long userId, java.util.Collection<String> authorities) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", username);
         claims.put("userId", userId);
+        claims.put("authorities", authorities);
         return createToken(claims, email, accessTokenExpiration);
     }
     
@@ -74,6 +75,11 @@ public class JwtUtil {
     
     public Long extractUserId(String token) {
         return extractClaim(token, claims -> claims.get("userId", Long.class));
+    }
+    
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> extractAuthorities(String token) {
+        return extractClaim(token, claims -> claims.get("authorities", java.util.List.class));
     }
     
     public Date extractExpiration(String token) {
