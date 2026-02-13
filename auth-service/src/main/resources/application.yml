@@ -38,7 +38,7 @@ spring:
             scope:
               - email
               - profile
-            redirect-uri: "http://localhost:8080/api/auth/oauth2/callback/google"
+            redirect-uri: "${APP_URL:http://localhost:8080}/api/auth/oauth2/callback/google"
         provider:
           google:
             authorization-uri: https://accounts.google.com/o/oauth2/auth
@@ -54,7 +54,7 @@ jwt:
 
 # CORS Configuration
 cors:
-  allowed-origins: http://localhost:3000,http://localhost:8080
+  allowed-origins: ${FRONTEND_URL:http://localhost:3000},${APP_URL:http://localhost:8080}
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   allowed-headers: "*"
   allow-credentials: true
