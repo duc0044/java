@@ -45,22 +45,7 @@ public class AuthController {
         return ResponseEntity.ok("Đăng xuất thành công");
     }
     
-    @GetMapping("/oauth2/callback/google")
-    public void handleGoogleCallback(
-            @AuthenticationPrincipal OAuth2User oAuth2User,
-            HttpServletResponse response) throws IOException {
-        
-        AuthResponse authResponse = oAuth2Service.handleOAuth2User(oAuth2User);
-        
-        // Redirect to frontend with tokens (mobile/web will handle this)
-        String redirectUrl = String.format(
-            "http://localhost:3000/auth/callback?accessToken=%s&refreshToken=%s",
-            authResponse.getAccessToken(),
-            authResponse.getRefreshToken()
-        );
-        
-        response.sendRedirect(redirectUrl);
-    }
+    // OAuth2 callback is now handled by CustomOAuth2SuccessHandler in SecurityConfig
     
     @GetMapping("/test")
     public ResponseEntity<String> test() {

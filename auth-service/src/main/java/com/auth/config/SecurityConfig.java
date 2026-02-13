@@ -33,6 +33,8 @@ public class SecurityConfig {
     @Value("${cors.allow-credentials}")
     private boolean allowCredentials;
     
+    private final CustomOAuth2SuccessHandler customOAuth2SuccessHandler;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -45,7 +47,13 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
-                .defaultSuccessUrl("/api/auth/oauth2/callback/google")
+                .authorizationEndpoint(authorization -> authorization
+                    .baseUri("/api/auth/oauth2/authorization")
+                )
+                .redirectionEndpoint(redirection -> redirection
+                    .baseUri("/api/auth/oauth2/callback/*")
+                )
+                .successHandler(customOAuth2SuccessHandler)
             );
         
         return http.build();
