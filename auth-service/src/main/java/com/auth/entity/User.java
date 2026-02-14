@@ -9,6 +9,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "users")
@@ -33,13 +35,37 @@ public class User {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @lombok.Builder.Default
     private AuthProvider provider = AuthProvider.LOCAL;
     
-    @Column(nullable = false, length = 50)
-    private String roles = "ROLE_USER";
+    // Many-to-many relationship with roles (proper normalization)
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "user_roles",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "role_id")
+    )
+    @Builder.Default
+    private Set<Role> roles = new HashSet<>();
+    
+    // Many-to-many relationship with direct permissions
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(
+        name = "user_permissions",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "permission_id")
+    )
+    @Builder.Default
+    private Set<PermissionEntity> permissions = new HashSet<>();
+    
+    // Deprecated - keep for backward compatibility during migration
+    @Column(nullable = true, length = 50)
+    @Deprecated
+    private String legacyRoles;
     
     @Column(columnDefinition = "TEXT")
-    private String permissions;
+    @Deprecated
+    private String legacyPermissions;
     
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

@@ -13,6 +13,7 @@ public class AuthResponse {
     
     private String accessToken;
     private String refreshToken;
+    @lombok.Builder.Default
     private String tokenType = "Bearer";
     private Long expiresIn;
     private UserResponse user;

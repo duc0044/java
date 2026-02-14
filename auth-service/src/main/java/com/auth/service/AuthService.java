@@ -1,26 +1,32 @@
 package com.auth.service;
 
 import com.auth.dto.*;
-import com.auth.entity.AuthProvider;
-import com.auth.entity.User;
+import com.auth.entity.*;
+import com.auth.repository.PermissionRepository;
+import com.auth.repository.RoleRepository;
 import com.auth.repository.UserRepository;
-import com.auth.util.AuthorityUtils;
 import com.auth.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
     
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PermissionRepository permissionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
+    private final RolePermissionService rolePermissionService;
     
     public AuthResponse register(RegisterRequest request) {
         // Check email exists
@@ -33,19 +39,25 @@ public class AuthService {
             throw new RuntimeException("Username đã được sử dụng");
         }
         
+        // Get default role
+        Role userRole = roleRepository.findByName("ROLE_USER")
+            .orElseThrow(() -> new RuntimeException("Default role not found"));
+        
         // Create user
         User user = User.builder()
                 .email(request.getEmail())
                 .username(request.getUsername())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .provider(AuthProvider.LOCAL)
-                .roles("ROLE_USER")
+                .roles(Set.of(userRole))
+                .permissions(new HashSet<>())
                 .build();
         
         user = userRepository.save(user);
         
-        // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles(), user.getPermissions()));
+        // Generate tokens with proper authorities
+        Set<String> authorities = rolePermissionService.getUserAuthorities(user);
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), authorities);
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token in Redis
@@ -65,8 +77,9 @@ public class AuthService {
             throw new RuntimeException("Email/Username hoặc password không đúng");
         }
         
-        // Generate tokens
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles(), user.getPermissions()));
+        // Generate tokens with proper authorities
+        Set<String> authorities = rolePermissionService.getUserAuthorities(user);
+        String accessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), authorities);
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Store refresh token in Redis
@@ -96,8 +109,9 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
         
-        // Generate new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), AuthorityUtils.getAuthorities(user.getRoles(), user.getPermissions()));
+        // Generate new tokens with proper authorities
+        Set<String> authorities = rolePermissionService.getUserAuthorities(user);
+        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail(), user.getUsername(), user.getId(), authorities);
         String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
         
         // Update refresh token in Redis
@@ -182,35 +196,95 @@ public class AuthService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
         
-        if (request.getUsername() != null) user.setUsername(request.getUsername());
-        if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getUsername() != null) {
+            validateUsername(request.getUsername(), user.getId());
+            user.setUsername(request.getUsername());
+        }
+        if (request.getEmail() != null) {
+            validateEmail(request.getEmail(), user.getId());
+            user.setEmail(request.getEmail());
+        }
         
         if (request.getRoles() != null && !request.getRoles().isEmpty() && !request.getRoles().equals(user.getRoles())) {
-            // Check if current user is ADMIN before allowing role change
-            String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
-            User currentUser = userRepository.findByEmail(currentEmail)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
-            
-            if (!currentUser.getRoles().contains("ROLE_ADMIN")) {
-                throw new RuntimeException("Bạn không có quyền thay đổi role");
-            }
-            
+            validateAdminPermission("thay đổi role");
+            validateRoles(request.getRoles());
             user.setRoles(request.getRoles());
         }
         
         if (request.getPermissions() != null && !java.util.Objects.equals(request.getPermissions(), user.getPermissions())) {
-             // Check if current user is ADMIN before allowing permission change
-            String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
-            User currentUser = userRepository.findByEmail(currentEmail)
-                    .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
-            
-            if (!currentUser.getRoles().contains("ROLE_ADMIN")) {
-                throw new RuntimeException("Bạn không có quyền thay đổi permissions");
-            }
+            validateAdminPermission("thay đổi permissions");
+            validatePermissions(request.getPermissions());
             user.setPermissions(request.getPermissions());
         }
         
         return mapToUserResponse(userRepository.save(user));
+    }
+
+    private void validateAdminPermission(String action) {
+        String currentEmail = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        User currentUser = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin người dùng hiện tại"));
+        
+        if (!currentUser.getRoles().contains("ROLE_ADMIN")) {
+            throw new RuntimeException("Bạn không có quyền " + action);
+        }
+    }
+    
+    private void validateRoles(String roles) {
+        if (roles == null || roles.trim().isEmpty()) return;
+        
+        Set<String> validRoles = Set.of("ROLE_USER", "ROLE_STAFF", "ROLE_ADMIN", "ROLE_MANAGER");
+        String[] roleArray = roles.split(",");
+        
+        for (String role : roleArray) {
+            String trimmedRole = role.trim();
+            if (!validRoles.contains(trimmedRole)) {
+                throw new RuntimeException("Role không hợp lệ: " + trimmedRole);
+            }
+        }
+    }
+    
+    private void validatePermissions(String permissions) {
+        if (permissions == null || permissions.trim().isEmpty()) return;
+        
+        Set<String> validPermissions = Set.of(
+            // User Management
+            com.auth.entity.Permission.USER_READ, com.auth.entity.Permission.USER_CREATE,
+            com.auth.entity.Permission.USER_UPDATE, com.auth.entity.Permission.USER_DELETE,
+            // Report Management
+            com.auth.entity.Permission.REPORT_READ, com.auth.entity.Permission.REPORT_CREATE,
+            com.auth.entity.Permission.REPORT_UPDATE, com.auth.entity.Permission.REPORT_DELETE,
+            com.auth.entity.Permission.REPORT_EXPORT,
+            // Order Management
+            com.auth.entity.Permission.ORDER_READ, com.auth.entity.Permission.ORDER_CREATE,
+            com.auth.entity.Permission.ORDER_UPDATE, com.auth.entity.Permission.ORDER_DELETE,
+            com.auth.entity.Permission.ORDER_APPROVE,
+            // System Administration
+            com.auth.entity.Permission.SYSTEM_CONFIG, com.auth.entity.Permission.SYSTEM_BACKUP,
+            com.auth.entity.Permission.AUDIT_READ
+        );
+        String[] permArray = permissions.split(",");
+        
+        for (String permission : permArray) {
+            String trimmedPermission = permission.trim();
+            if (!trimmedPermission.isEmpty() && !validPermissions.contains(trimmedPermission)) {
+                throw new RuntimeException("Permission không hợp lệ: " + trimmedPermission);
+            }
+        }
+    }
+    
+    private void validateEmail(String email, Long userId) {
+        if (userRepository.findByEmail(email).isPresent() && 
+            !userRepository.findByEmail(email).get().getId().equals(userId)) {
+            throw new RuntimeException("Email đã được sử dụng bởi user khác");
+        }
+    }
+    
+    private void validateUsername(String username, Long userId) {
+        if (userRepository.findByUsername(username).isPresent() && 
+            !userRepository.findByUsername(username).get().getId().equals(userId)) {
+            throw new RuntimeException("Username đã được sử dụng bởi user khác");
+        }
     }
 
     public void deleteUser(Long id) {
@@ -236,12 +310,22 @@ public class AuthService {
     }
 
     private UserResponse mapToUserResponse(User user) {
+        // Convert roles to comma-separated string (for backward compatibility)
+        String rolesString = user.getRoles().stream()
+            .map(Role::getName)
+            .collect(Collectors.joining(","));
+            
+        // Convert permissions to comma-separated string (for backward compatibility)  
+        String permissionsString = user.getPermissions().stream()
+            .map(PermissionEntity::getName)
+            .collect(Collectors.joining(","));
+            
         return UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
-                .roles(user.getRoles())
-                .permissions(user.getPermissions())
+                .roles(rolesString)
+                .permissions(permissionsString.isEmpty() ? null : permissionsString)
                 .build();
     }
 

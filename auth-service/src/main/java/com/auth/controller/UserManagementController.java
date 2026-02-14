@@ -4,15 +4,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Arrays;
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/users")
 @lombok.RequiredArgsConstructor
 public class UserManagementController {
 
     private final com.auth.service.AuthService authService;
+    private final com.auth.repository.UserRepository userRepository;
 
     @GetMapping
     @PreAuthorize("hasAuthority('user:read')")
@@ -23,6 +21,23 @@ public class UserManagementController {
             @RequestParam(required = false) String role) {
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by("createdAt").descending());
         return ResponseEntity.ok(authService.listUsers(search, role, pageable));
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('user:read')")
+    public ResponseEntity<com.auth.dto.UserResponse> getUserById(@PathVariable Long id) {
+        com.auth.entity.User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+        
+        com.auth.dto.UserResponse response = com.auth.dto.UserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .roles(user.getRoles())
+                .permissions(user.getPermissions())
+                .build();
+                
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping
