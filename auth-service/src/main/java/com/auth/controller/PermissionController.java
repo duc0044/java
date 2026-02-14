@@ -22,7 +22,7 @@ public class PermissionController {
     private final PermissionRepository permissionRepository;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> getAllPermissions(
             @RequestParam(required = false) String category,
             Pageable pageable
@@ -45,19 +45,19 @@ public class PermissionController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<List<PermissionEntity>> getAllPermissionsWithoutPaging() {
         return ResponseEntity.ok(permissionRepository.findAll());
     }
 
     @GetMapping("/categories")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<List<String>> getCategories() {
         return ResponseEntity.ok(permissionRepository.findDistinctCategories());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<PermissionEntity> getPermissionById(@PathVariable Long id) {
         return permissionRepository.findById(id)
                 .map(ResponseEntity::ok)
@@ -65,7 +65,7 @@ public class PermissionController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> createPermission(@RequestBody PermissionEntity permission) {
         // Check if permission name already exists
         if (permissionRepository.findByName(permission.getName()).isPresent()) {
@@ -79,7 +79,7 @@ public class PermissionController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> updatePermission(
             @PathVariable Long id,
             @RequestBody PermissionEntity permissionDetails
@@ -106,7 +106,7 @@ public class PermissionController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> deletePermission(@PathVariable Long id) {
         return permissionRepository.findById(id)
                 .map(permission -> {

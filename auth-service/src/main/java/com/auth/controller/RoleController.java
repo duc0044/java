@@ -24,7 +24,7 @@ public class RoleController {
     private final PermissionRepository permissionRepository;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> getAllRoles(Pageable pageable) {
         Page<Role> roles = roleRepository.findAll(pageable);
         
@@ -38,13 +38,13 @@ public class RoleController {
     }
 
     @GetMapping("/all")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<List<Role>> getAllRolesWithoutPaging() {
         return ResponseEntity.ok(roleRepository.findAll());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> getRoleById(@PathVariable Long id) {
         return roleRepository.findById(id)
                 .map(role -> {
@@ -61,7 +61,7 @@ public class RoleController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> createRole(@RequestBody Map<String, Object> roleData) {
         String name = (String) roleData.get("name");
         String description = (String) roleData.get("description");
@@ -102,7 +102,7 @@ public class RoleController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> updateRole(
             @PathVariable Long id,
             @RequestBody Map<String, Object> roleData
@@ -150,7 +150,7 @@ public class RoleController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> deleteRole(@PathVariable Long id) {
         return roleRepository.findById(id)
                 .map(role -> {
@@ -169,7 +169,7 @@ public class RoleController {
     }
 
     @PostMapping("/{roleId}/permissions")
-    @PreAuthorize("hasAuthority('role:manage')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('role:manage')")
     public ResponseEntity<?> assignPermissionsToRole(
             @PathVariable Long roleId,
             @RequestBody Map<String, Set<String>> request

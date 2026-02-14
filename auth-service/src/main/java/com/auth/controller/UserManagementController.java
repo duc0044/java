@@ -13,7 +13,7 @@ public class UserManagementController {
     private final com.auth.repository.UserRepository userRepository;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:read')")
     public ResponseEntity<com.auth.dto.PageResponse<com.auth.dto.UserResponse>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -24,7 +24,7 @@ public class UserManagementController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:read')")
     public ResponseEntity<com.auth.dto.UserResponse> getUserById(@PathVariable Long id) {
         com.auth.entity.User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
@@ -57,19 +57,19 @@ public class UserManagementController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('user:create')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:create')")
     public ResponseEntity<com.auth.dto.UserResponse> createUser(@RequestBody com.auth.dto.RegisterRequest request) {
         return ResponseEntity.ok(authService.createUser(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:update')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:update')")
     public ResponseEntity<com.auth.dto.UserResponse> updateUser(@PathVariable Long id, @RequestBody com.auth.dto.UpdateUserRequest request) {
         return ResponseEntity.ok(authService.updateUser(id, request));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('user:delete')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:delete')")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         authService.deleteUser(id);
         return ResponseEntity.noContent().build();

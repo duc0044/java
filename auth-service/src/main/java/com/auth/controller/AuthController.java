@@ -95,7 +95,7 @@ public class AuthController {
     }
     
     @GetMapping("/system/metadata")
-    @PreAuthorize("hasAuthority('user:read')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:read')")
     public ResponseEntity<Map<String, Object>> getSystemMetadata() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("availableRoles", Arrays.asList("ROLE_USER", "ROLE_STAFF", "ROLE_ADMIN", "ROLE_MANAGER"));

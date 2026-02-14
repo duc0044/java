@@ -14,7 +14,7 @@ import java.util.*;
 public class ReportController {
 
     @GetMapping
-    @PreAuthorize("hasAuthority('report:read')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:read')")
     public ResponseEntity<Map<String, Object>> getAllReports(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -32,7 +32,7 @@ public class ReportController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('report:create')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:create')")
     public ResponseEntity<Map<String, Object>> createReport(@RequestBody Map<String, Object> reportData) {
         
         // Create report logic here
@@ -46,7 +46,7 @@ public class ReportController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('report:update')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:update')")
     public ResponseEntity<Map<String, Object>> updateReport(
             @PathVariable Long id, 
             @RequestBody Map<String, Object> reportData) {
@@ -61,7 +61,7 @@ public class ReportController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('report:delete')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:delete')")
     public ResponseEntity<Void> deleteReport(@PathVariable Long id) {
         
         // Delete report logic here
@@ -69,7 +69,7 @@ public class ReportController {
     }
 
     @PostMapping("/{id}/export")
-    @PreAuthorize("hasAuthority('report:export')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('report:export')")
     public ResponseEntity<Map<String, Object>> exportReport(@PathVariable Long id) {
         
         // Export report logic here

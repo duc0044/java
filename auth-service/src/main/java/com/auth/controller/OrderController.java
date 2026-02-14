@@ -15,7 +15,7 @@ import java.util.*;
 public class OrderController {
 
     @GetMapping
-    @PreAuthorize("hasAuthority('order:read')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:read')")
     public ResponseEntity<Map<String, Object>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -34,7 +34,7 @@ public class OrderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('order:create')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:create')")
     public ResponseEntity<Map<String, Object>> createOrder(@RequestBody Map<String, Object> orderData) {
         
         String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -51,7 +51,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('order:update')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:update')")
     public ResponseEntity<Map<String, Object>> updateOrder(
             @PathVariable Long id, 
             @RequestBody Map<String, Object> orderData) {
@@ -67,7 +67,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAuthority('order:approve')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:approve')")
     public ResponseEntity<Map<String, Object>> approveOrder(@PathVariable Long id) {
         
         String currentUser = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -83,7 +83,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAuthority('order:approve')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('order:approve')")
     public ResponseEntity<Map<String, Object>> rejectOrder(
             @PathVariable Long id, 
             @RequestBody Map<String, String> reason) {
