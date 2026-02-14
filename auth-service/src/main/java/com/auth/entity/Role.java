@@ -27,9 +27,6 @@ public class Role {
     @Column(length = 255)
     private String description;
     
-    @ManyToMany(mappedBy = "roles")
-    private Set<User> users = new HashSet<>();
-    
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "role_permissions",

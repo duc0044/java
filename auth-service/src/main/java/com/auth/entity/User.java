@@ -35,10 +35,9 @@ public class User {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    @lombok.Builder.Default
     private AuthProvider provider = AuthProvider.LOCAL;
     
-    // Many-to-many relationship with roles (proper normalization)
+    // Many-to-Many relationship with Role
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_roles",
@@ -48,7 +47,7 @@ public class User {
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
     
-    // Many-to-many relationship with direct permissions
+    // Many-to-Many relationship with Permission (direct user permissions)
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
         name = "user_permissions",
@@ -57,15 +56,6 @@ public class User {
     )
     @Builder.Default
     private Set<PermissionEntity> permissions = new HashSet<>();
-    
-    // Deprecated - keep for backward compatibility during migration
-    @Column(nullable = true, length = 50)
-    @Deprecated
-    private String legacyRoles;
-    
-    @Column(columnDefinition = "TEXT")
-    @Deprecated
-    private String legacyPermissions;
     
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

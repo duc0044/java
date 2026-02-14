@@ -1,6 +1,8 @@
 package com.auth.repository;
 
 import com.auth.entity.PermissionEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,8 @@ public interface PermissionRepository extends JpaRepository<PermissionEntity, Lo
     Set<PermissionEntity> findByNameIn(Set<String> names);
     
     List<PermissionEntity> findByCategory(String category);
+    
+    Page<PermissionEntity> findByCategory(String category, Pageable pageable);
     
     @Query("SELECT DISTINCT p.category FROM PermissionEntity p")
     List<String> findDistinctCategories();

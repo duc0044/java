@@ -29,10 +29,4 @@ public class PermissionEntity {
     
     @Column(length = 50)
     private String category; // User Management, Report Management, etc.
-    
-    @ManyToMany(mappedBy = "permissions")
-    private Set<Role> roles = new HashSet<>();
-    
-    @ManyToMany(mappedBy = "permissions")
-    private Set<User> users = new HashSet<>();
 }

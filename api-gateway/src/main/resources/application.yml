@@ -8,7 +8,7 @@ spring:
   cloud:
     gateway:
       routes:
-        # Auth Endpoints
+        # Root path
         - id: auth-service-root
           uri: http://auth-service:8081
           predicates:
@@ -16,37 +16,11 @@ spring:
           filters:
             - PreserveHostHeader=
 
-        - id: auth-service-core
+        # All API endpoints - catch-all route
+        - id: auth-service-api
           uri: http://auth-service:8081
           predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=0
-            - PreserveHostHeader=
-
-        # User Management Endpoints
-        - id: auth-service-users
-          uri: http://auth-service:8081
-          predicates:
-            - Path=/api/users/**,/api/users
-          filters:
-            - StripPrefix=0
-            - PreserveHostHeader=
-            
-        # Report Management Endpoints  
-        - id: auth-service-reports
-          uri: http://auth-service:8081
-          predicates:
-            - Path=/api/reports/**,/api/reports
-          filters:
-            - StripPrefix=0
-            - PreserveHostHeader=
-            
-        # Order Management Endpoints
-        - id: auth-service-orders
-          uri: http://auth-service:8081
-          predicates:
-            - Path=/api/orders/**,/api/orders
+            - Path=/api/**
           filters:
             - StripPrefix=0
             - PreserveHostHeader=

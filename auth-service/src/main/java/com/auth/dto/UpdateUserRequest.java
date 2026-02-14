@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Set;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -12,6 +14,6 @@ import lombok.NoArgsConstructor;
 public class UpdateUserRequest {
     private String username;
     private String email;
-    private String roles;
-    private String permissions;
+    private Set<String> roles;  // Role names to assign
+    private Set<String> permissions;  // Permission names to assign directly
 }

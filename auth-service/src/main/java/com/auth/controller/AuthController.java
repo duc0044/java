@@ -52,12 +52,28 @@ public class AuthController {
         var user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
         
+        Set<String> roleNames = user.getRoles() != null 
+                ? user.getRoles().stream().map(com.auth.entity.Role::getName).collect(java.util.stream.Collectors.toSet())
+                : new java.util.HashSet<>();
+        
+        Set<String> allPermissions = new java.util.HashSet<>();
+        if (user.getRoles() != null) {
+            user.getRoles().forEach(role -> {
+                if (role.getPermissions() != null) {
+                    role.getPermissions().forEach(perm -> allPermissions.add(perm.getName()));
+                }
+            });
+        }
+        if (user.getPermissions() != null) {
+            user.getPermissions().forEach(perm -> allPermissions.add(perm.getName()));
+        }
+        
         return ResponseEntity.ok(UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
-                .roles(user.getRoles())
-                .permissions(user.getPermissions())
+                .roles(roleNames)
+                .permissions(allPermissions)
                 .build());
     }
 
@@ -94,15 +110,15 @@ public class AuthController {
             metadata.put("currentUserAuthorities", authorities);
             
             // Add current user role/permission info for frontend convenience
-            String rolesString = user.getRoles().stream()
-                .map(com.auth.entity.Role::getName)
-                .collect(java.util.stream.Collectors.joining(","));
-            String permissionsString = user.getPermissions().stream()
-                .map(com.auth.entity.PermissionEntity::getName)
-                .collect(java.util.stream.Collectors.joining(","));
-                
-            metadata.put("currentUserRoles", rolesString);
-            metadata.put("currentUserPermissions", permissionsString.isEmpty() ? null : permissionsString);
+            Set<String> roleNames = user.getRoles() != null 
+                    ? user.getRoles().stream().map(com.auth.entity.Role::getName).collect(java.util.stream.Collectors.toSet())
+                    : new java.util.HashSet<>();
+            Set<String> permNames = user.getPermissions() != null
+                    ? user.getPermissions().stream().map(com.auth.entity.PermissionEntity::getName).collect(java.util.stream.Collectors.toSet())
+                    : new java.util.HashSet<>();
+            
+            metadata.put("currentUserRoles", roleNames);
+            metadata.put("currentUserPermissions", permNames);
         }
         
         return ResponseEntity.ok(metadata);

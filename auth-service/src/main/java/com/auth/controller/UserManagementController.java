@@ -29,12 +29,28 @@ public class UserManagementController {
         com.auth.entity.User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User không tồn tại"));
         
+        java.util.Set<String> roleNames = user.getRoles() != null 
+                ? user.getRoles().stream().map(com.auth.entity.Role::getName).collect(java.util.stream.Collectors.toSet())
+                : new java.util.HashSet<>();
+        
+        java.util.Set<String> allPermissions = new java.util.HashSet<>();
+        if (user.getRoles() != null) {
+            user.getRoles().forEach(role -> {
+                if (role.getPermissions() != null) {
+                    role.getPermissions().forEach(perm -> allPermissions.add(perm.getName()));
+                }
+            });
+        }
+        if (user.getPermissions() != null) {
+            user.getPermissions().forEach(perm -> allPermissions.add(perm.getName()));
+        }
+        
         com.auth.dto.UserResponse response = com.auth.dto.UserResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
-                .roles(user.getRoles())
-                .permissions(user.getPermissions())
+                .roles(roleNames)
+                .permissions(allPermissions)
                 .build();
                 
         return ResponseEntity.ok(response);
