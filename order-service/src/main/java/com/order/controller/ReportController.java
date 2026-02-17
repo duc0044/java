@@ -1,4 +1,4 @@
-package com.auth.controller;
+package com.order.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -6,8 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 
 /**
- * Example controller demonstrating new permission system
- * For Report Management feature
+ * Report Management Controller
  */
 @RestController
 @RequestMapping("/api/reports")

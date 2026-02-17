@@ -1,8 +1,12 @@
 package com.auth.controller;
 
+import com.auth.client.FileServiceClient;
+import com.auth.dto.AvatarUploadResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/users")
@@ -11,6 +15,7 @@ public class UserManagementController {
 
     private final com.auth.service.AuthService authService;
     private final com.auth.repository.UserRepository userRepository;
+    private final FileServiceClient fileServiceClient;
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('user:read')")
@@ -49,6 +54,7 @@ public class UserManagementController {
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
+                .avatarUrl(user.getAvatarUrl())
                 .roles(roleNames)
                 .permissions(allPermissions)
                 .build();
@@ -73,5 +79,126 @@ public class UserManagementController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         authService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Upload avatar for user
+     */
+    @PostMapping("/{id}/avatar")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<AvatarUploadResponse> uploadAvatar(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        
+        try {
+            // Get current user
+            String currentEmail = org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication().getName();
+            com.auth.entity.User currentUser = userRepository.findByEmail(currentEmail)
+                    .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+            
+            // Check if user can update this avatar (own avatar or admin)
+            boolean isAdmin = currentUser.getRoles().stream()
+                    .anyMatch(role -> "ROLE_ADMIN".equals(role.getName()));
+            
+            if (!currentUser.getId().equals(id) && !isAdmin) {
+                throw new RuntimeException("Bạn không có quyền upload avatar cho user này");
+            }
+            
+            // Get user to update
+            com.auth.entity.User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+            
+            // Extract token from request
+            String authHeader = request.getHeader("Authorization");
+            String token = authHeader != null && authHeader.startsWith("Bearer ") 
+                    ? authHeader.substring(7) : null;
+            
+            if (token == null) {
+                throw new RuntimeException("Missing authentication token");
+            }
+            
+            // Delete old avatar if exists
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                try {
+                    fileServiceClient.deleteFile(user.getAvatarUrl(), token);
+                } catch (Exception e) {
+                    // Log error but continue with upload
+                    System.err.println("Failed to delete old avatar: " + e.getMessage());
+                }
+            }
+            
+            // Upload new avatar to file-service with user-specific folder
+            String folder = "avatars/user-" + id;
+            String fileName = fileServiceClient.uploadFile(file, folder, token);
+            
+            // Update user avatar URL
+            user.setAvatarUrl(fileName);
+            userRepository.save(user);
+            
+            return ResponseEntity.ok(AvatarUploadResponse.builder()
+                    .avatarUrl(fileName)
+                    .fileName(fileName)
+                    .message("Avatar uploaded successfully")
+                    .build());
+                    
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload avatar: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete avatar for user
+     */
+    @DeleteMapping("/{id}/avatar")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> deleteAvatar(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        
+        try {
+            // Get current user
+            String currentEmail = org.springframework.security.core.context.SecurityContextHolder
+                    .getContext().getAuthentication().getName();
+            com.auth.entity.User currentUser = userRepository.findByEmail(currentEmail)
+                    .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+            
+            // Check if user can delete this avatar (own avatar or admin)
+            boolean isAdmin = currentUser.getRoles().stream()
+                    .anyMatch(role -> "ROLE_ADMIN".equals(role.getName()));
+            
+            if (!currentUser.getId().equals(id) && !isAdmin) {
+                throw new RuntimeException("Bạn không có quyền xóa avatar cho user này");
+            }
+            
+            // Get user to update
+            com.auth.entity.User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User không tồn tại"));
+            
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                // Extract token from request
+                String authHeader = request.getHeader("Authorization");
+                String token = authHeader != null && authHeader.startsWith("Bearer ") 
+                        ? authHeader.substring(7) : null;
+                
+                if (token != null) {
+                    try {
+                        fileServiceClient.deleteFile(user.getAvatarUrl(), token);
+                    } catch (Exception e) {
+                        System.err.println("Failed to delete avatar file: " + e.getMessage());
+                    }
+                }
+                
+                // Remove avatar URL from user
+                user.setAvatarUrl(null);
+                userRepository.save(user);
+            }
+            
+            return ResponseEntity.noContent().build();
+            
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete avatar: " + e.getMessage());
+        }
     }
 }

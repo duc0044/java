@@ -6,7 +6,8 @@ import com.auth.repository.PermissionRepository;
 import com.auth.repository.RoleRepository;
 import com.auth.repository.UserRepository;
 import com.auth.util.JwtUtil;
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,8 +17,8 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class AuthService {
     
     private final UserRepository userRepository;
@@ -26,6 +27,26 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
+    
+    @Value("${avatar.default.admin:avatars/default/admin-avatar.png}")
+    private String defaultAdminAvatar;
+    
+    @Value("${avatar.default.user:avatars/default/user-avatar.png}")
+    private String defaultUserAvatar;
+    
+    public AuthService(UserRepository userRepository, 
+                      RoleRepository roleRepository,
+                      PermissionRepository permissionRepository,
+                      PasswordEncoder passwordEncoder,
+                      JwtUtil jwtUtil,
+                      RedisTemplate<String, String> redisTemplate) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.permissionRepository = permissionRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+        this.redisTemplate = redisTemplate;
+    }
     
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -52,6 +73,10 @@ public class AuthService {
                 .build();
         
         user.getRoles().add(userRole);
+        
+        // Set default avatar based on role
+        user.setAvatarUrl(getDefaultAvatar(user.getRoles()));
+        
         user = userRepository.save(user);
         
         // Generate tokens with authorities
@@ -216,6 +241,10 @@ public class AuthService {
                 .build();
         
         user.getRoles().add(userRole);
+        
+        // Set default avatar based on role
+        user.setAvatarUrl(getDefaultAvatar(user.getRoles()));
+        
         return mapToUserResponse(userRepository.save(user));
     }
 
@@ -233,6 +262,11 @@ public class AuthService {
             user.setEmail(request.getEmail());
         }
         
+        // Update avatar URL
+        if (request.getAvatarUrl() != null) {
+            user.setAvatarUrl(request.getAvatarUrl());
+        }
+        
         // Update roles
         if (request.getRoles() != null && !request.getRoles().isEmpty()) {
             validateAdminPermission("thay đổi role");
@@ -240,7 +274,25 @@ public class AuthService {
             if (roles.size() != request.getRoles().size()) {
                 throw new RuntimeException("Một số role không hợp lệ");
             }
+            
+            // Store old roles to check if we need to update avatar
+            Set<Role> oldRoles = new HashSet<>(user.getRoles());
             user.setRoles(roles);
+            
+            // Update avatar if role changed and user is using default avatar
+            boolean wasAdmin = oldRoles.stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+            boolean isAdmin = roles.stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getName()));
+            
+            // If promoted to admin and using default user avatar, switch to admin avatar
+            if (!wasAdmin && isAdmin && defaultUserAvatar.equals(user.getAvatarUrl())) {
+                user.setAvatarUrl(defaultAdminAvatar);
+                log.info("Updated user {} avatar to default admin avatar", user.getId());
+            }
+            // If demoted from admin and using default admin avatar, switch to user avatar
+            else if (wasAdmin && !isAdmin && defaultAdminAvatar.equals(user.getAvatarUrl())) {
+                user.setAvatarUrl(defaultUserAvatar);
+                log.info("Updated user {} avatar to default user avatar", user.getId());
+            }
         }
         
         // Update direct permissions
@@ -332,9 +384,31 @@ public class AuthService {
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
+                .avatarUrl(user.getAvatarUrl())
                 .roles(roleNames)
                 .permissions(allPermissions)
                 .build();
+    }
+
+    /**
+     * Get default avatar URL based on user's roles
+     */
+    private String getDefaultAvatar(Set<Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return defaultUserAvatar;
+        }
+        
+        // Check if user has ADMIN role
+        boolean isAdmin = roles.stream()
+                .anyMatch(role -> "ROLE_ADMIN".equals(role.getName()));
+        
+        if (isAdmin) {
+            log.debug("Setting default admin avatar for user");
+            return defaultAdminAvatar;
+        }
+        
+        log.debug("Setting default user avatar for user");
+        return defaultUserAvatar;
     }
 
     private void storeRefreshToken(String email, String refreshToken) {

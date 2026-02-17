@@ -52,6 +52,16 @@ jwt:
   access-token-expiration: 900000      # 15 minutes
   refresh-token-expiration: 604800000  # 7 days
 
+# File Service Configuration
+file-service:
+  url: http://localhost:8083
+
+# Default Avatars
+avatar:
+  default:
+    admin: avatars/default/admin-avatar.png
+    user: avatars/default/user-avatar.png
+
 # CORS Configuration
 cors:
   allowed-origins: ${FRONTEND_URL:http://localhost:3000},${APP_URL:http://localhost:8080}

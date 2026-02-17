@@ -16,6 +16,7 @@ public class UserResponse {
     private Long id;
     private String email;
     private String username;
+    private String avatarUrl;
     private Set<String> roles;  // Changed to Set<String> for role names
     private Set<String> permissions;  // Changed to Set<String> for permission names
 }

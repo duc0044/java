@@ -1,6 +1,18 @@
 # Microservice Authentication System
 
-## Auth Service (http://localhost:8081)
+## Architecture Overview
+
+Hệ thống gồm 4 microservices:
+- **API Gateway** (Port 8080) - Route requests và validate JWT
+- **Auth Service** (Port 8081) - Authentication, Authorization, User/Role/Permission Management
+- **Order Service** (Port 8082) - Order và Report Management
+- **File Service** (Port 8083) - File Storage với MinIO
+
+## Services
+
+### Auth Service (http://localhost:8081)
+
+Quản lý authentication và authorization.
 
 ### Endpoints
 
@@ -48,11 +60,69 @@ Authorization: Bearer your-access-token
 GET /api/auth/oauth2/callback/google
 ```
 
+#### 6. Upload Avatar
+```bash
+POST /api/users/{id}/avatar
+Authorization: Bearer <access_token>
+Content-Type: multipart/form-data
+
+Form Data:
+- file: [Image File] (max 10MB)
+```
+
+#### 7. Delete Avatar
+```bash
+DELETE /api/users/{id}/avatar
+Authorization: Bearer <access_token>
+```
+
+**Avatar Features:**
+- ✅ Auto default avatar theo role (Admin/User)
+- ✅ Custom avatar upload (max 10MB)
+- ✅ Avatar organized by user ID: `avatars/user-{id}/`
+- ✅ Auto-switch default avatar khi role thay đổi
+- 📖 Chi tiết: [AVATAR_GUIDE.md](AVATAR_GUIDE.md)
+
+**Note**: Users can only upload/delete their own avatar unless they have ADMIN role.
+
+
+### Order Service (http://localhost:8082)
+
+Quản lý đơn hàng và báo cáo. Xem chi tiết tại [order-service/README.md](order-service/README.md)
+
+#### Main Endpoints:
+- `GET /api/orders` - Lấy danh sách đơn hàng
+- `POST /api/orders` - Tạo đơn hàng mới
+- `POST /api/orders/{id}/approve` - Phê duyệt đơn hàng
+- `POST /api/orders/{id}/reject` - Từ chối đơn hàng
+- `GET /api/reports` - Lấy danh sách báo cáo
+- `POST /api/reports/{id}/export` - Export báo cáo
+
+### File Service (http://localhost:8083)
+
+Quản lý file storage với MinIO. Xem chi tiết tại [file-service/README.md](file-service/README.md)
+
+#### Main Endpoints:
+- `POST /api/files/upload` - Upload file (max 100MB)
+- `GET /api/files/download/{folder}/{filename}` - Download file
+- `GET /api/files/url/{folder}/{filename}` - Get presigned URL (temporary access)
+- `DELETE /api/files/{folder}/{filename}` - Delete file (Admin only)
+- `GET /api/files/metadata/{folder}/{filename}` - Get file metadata
+- `GET /api/files/exists/{folder}/{filename}` - Check file existence
+
+#### MinIO Console:
+- **URL**: http://localhost:9001
+- **Username**: minioadmin
+- **Password**: minioadmin123
+
 ## API Gateway (http://localhost:8080)
 
 Tất cả requests đi qua gateway trên port 8080:
-- `/api/auth/**` - Public (không cần token)
-- `/api/**` - Protected (cần Bearer token)
+- `/api/auth/**` → Auth Service (public, không cần token)
+- `/api/orders/**` → Order Service (protected)
+- `/api/reports/**` → Order Service (protected)
+- `/api/files/**` → File Service (protected)
+- `/api/**` → Auth Service (protected, user/role/permission management)
 
 ## Setup Instructions
 
@@ -65,6 +135,7 @@ Tất cả requests đi qua gateway trên port 8080:
 ### 2. Tạo Database
 ```sql
 CREATE DATABASE auth_db;
+CREATE DATABASE order_db;
 ```
 
 ### 3. Config Environment Variables (Optional)
@@ -75,14 +146,27 @@ export GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
 ### 4. Start Services
+
+#### Với Docker Compose (Khuyến nghị)
+```bash
+cd java
+docker-compose up
+```
+
+#### Hoặc chạy từng service riêng
 ```bash
 # Terminal 1 - Auth Service
-cd c:\Users\truon\Desktop\java\auth-service
+cd java/auth-service
 mvn clean install
 mvn spring-boot:run
 
-# Terminal 2 - API Gateway  
-cd c:\Users\truon\Desktop\java\api-gateway
+# Terminal 2 - Order Service
+cd java/order-service
+mvn clean install
+mvn spring-boot:run
+
+# Terminal 3 - API Gateway  
+cd java/api-gateway
 mvn clean install
 mvn spring-boot:run
 ```
@@ -111,9 +195,29 @@ curl -X GET http://localhost:8080/api/user/profile \
 ```
 Mobile/Web Client
        ↓
-API Gateway (8080) - JWT Validation
+API Gateway (8080) - Route & JWT Validation
        ↓
-Auth Service (8081) - JWT Generation, OAuth2
-       ↓
-PostgreSQL + Redis
+    ┌──┴────────────────────────────┐
+    ↓                ↓               ↓
+Auth Service    Order Service   File Service
+  (8081)          (8082)          (8083)
+- Authentication - Orders        - File Upload
+- Authorization  - Reports       - File Download
+- User/Role/Perm - JWT Validate  - MinIO Storage
+    ↓                ↓               ↓
+PostgreSQL +     PostgreSQL       MinIO
+  Redis          (order_db)      (Object Storage)
+(auth_db)
 ```
+
+## Key Features
+
+- ✅ **Microservices Architecture** - Services độc lập, dễ scale
+- ✅ **JWT Authentication** - Stateless authentication
+- ✅ **OAuth2 Google Login** - Social login
+- ✅ **Role-Based Access Control** - Quản lý quyền chi tiết
+- ✅ **API Gateway** - Single entry point, routing
+- ✅ **Separate Databases** - Mỗi service có database riêng
+- ✅ **Object Storage (MinIO)** - S3-compatible file storage
+- ✅ **Docker Support** - Dễ dàng deploy
+- ✅ **Redis Cache** - Performance optimization (auth-service)

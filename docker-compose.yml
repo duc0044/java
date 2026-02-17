@@ -13,6 +13,20 @@ services:
     networks:
       - microservice-network
 
+  postgres-order:
+    image: postgres:15-alpine
+    container_name: order_postgres
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_order_data:/var/lib/postgresql/data
+    networks:
+      - microservice-network
+
   redis:
     image: redis:7-alpine
     container_name: auth_redis
@@ -20,6 +34,26 @@ services:
       - "6379:6379"
     networks:
       - microservice-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio_storage
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - microservice-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
 
   auth-service:
     build:
@@ -55,6 +89,66 @@ services:
     networks:
       - microservice-network
 
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: order_service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-order:5432/order_db
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_URL=${APP_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+    volumes:
+      - ./order-service/src:/app/src
+      - ./order-service/target:/app/target
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8082/actuator/health || exit 1
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      - postgres-order
+    networks:
+      - microservice-network
+
+  file-service:
+    build:
+      context: ./file-service
+      dockerfile: Dockerfile
+    container_name: file_service
+    ports:
+      - "8083:8083"
+    environment:
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin123}
+      - MINIO_BUCKET=${MINIO_BUCKET:-files}
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_URL=${APP_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+    volumes:
+      - ./file-service/src:/app/src
+      - ./file-service/target:/app/target
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8083/actuator/health || exit 1
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - microservice-network
+
   api-gateway:
     build:
       context: ./api-gateway
@@ -72,6 +166,10 @@ services:
     depends_on:
       auth-service:
         condition: service_healthy
+      order-service:
+        condition: service_healthy
+      file-service:
+        condition: service_healthy
     networks:
       - microservice-network
 
@@ -86,6 +184,8 @@ services:
       - microservice-network
 volumes:
   postgres_data:
+  postgres_order_data:
+  minio_data:
 
 networks:
   microservice-network:

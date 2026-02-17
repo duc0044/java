@@ -1,0 +1,14 @@
+server:
+  port: 8083
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin123
+  bucket-name: files
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.file: DEBUG
+    io.minio: DEBUG

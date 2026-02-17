@@ -1,0 +1,55 @@
+server:
+  port: 8083
+  forward-headers-strategy: framework
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+spring:
+  application:
+    name: file-service
+  
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# MinIO Configuration
+minio:
+  endpoint: http://minio:9000
+  access-key: ${MINIO_ROOT_USER:minioadmin}
+  secret-key: ${MINIO_ROOT_PASSWORD:minioadmin123}
+  bucket-name: ${MINIO_BUCKET:files}
+  auto-create-bucket: true
+
+# JWT Configuration (for validating tokens from auth-service)
+jwt:
+  secret: ${JWT_SECRET:your-super-secret-key-change-this-in-production-min-256-bits}
+
+# CORS Configuration
+cors:
+  allowed-origins: ${FRONTEND_URL:http://localhost:3000},${APP_URL:http://localhost:8080}
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+
+# Logging Configuration
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    com.file: DEBUG
+    io.minio: DEBUG
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

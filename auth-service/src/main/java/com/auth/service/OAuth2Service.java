@@ -87,6 +87,7 @@ public class OAuth2Service extends DefaultOAuth2UserService {
                         .id(user.getId())
                         .email(user.getEmail())
                         .username(user.getUsername())
+                        .avatarUrl(user.getAvatarUrl())
                         .roles(roleNames)
                         .permissions(allPermissions)
                         .build())

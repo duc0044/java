@@ -14,6 +14,7 @@ import java.util.Set;
 public class UpdateUserRequest {
     private String username;
     private String email;
+    private String avatarUrl;
     private Set<String> roles;  // Role names to assign
     private Set<String> permissions;  // Permission names to assign directly
 }
