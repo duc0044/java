@@ -72,6 +72,7 @@ public class AuthController {
                 .id(user.getId())
                 .email(user.getEmail())
                 .username(user.getUsername())
+                .avatarUrl(user.getAvatarUrl())
                 .roles(roleNames)
                 .permissions(allPermissions)
                 .build());

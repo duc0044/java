@@ -3,6 +3,8 @@ package com.auth.controller;
 import com.auth.client.FileServiceClient;
 import com.auth.dto.AvatarUploadResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/users")
 @lombok.RequiredArgsConstructor
+@Slf4j
 public class UserManagementController {
 
     private final com.auth.service.AuthService authService;
@@ -86,12 +89,15 @@ public class UserManagementController {
      */
     @PostMapping("/{id}/avatar")
     @PreAuthorize("isAuthenticated()")
+    @Transactional
     public ResponseEntity<AvatarUploadResponse> uploadAvatar(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
             HttpServletRequest request) {
         
         try {
+            log.info("Starting avatar upload for user ID: {}", id);
+            
             // Get current user
             String currentEmail = org.springframework.security.core.context.SecurityContextHolder
                     .getContext().getAuthentication().getName();
@@ -125,17 +131,23 @@ public class UserManagementController {
                     fileServiceClient.deleteFile(user.getAvatarUrl(), token);
                 } catch (Exception e) {
                     // Log error but continue with upload
-                    System.err.println("Failed to delete old avatar: " + e.getMessage());
+                    log.error("Failed to delete old avatar: {}", e.getMessage());
                 }
             }
             
             // Upload new avatar to file-service with user-specific folder
             String folder = "avatars/user-" + id;
             String fileName = fileServiceClient.uploadFile(file, folder, token);
+            log.info("Avatar uploaded successfully, filename: {}", fileName);
             
-            // Update user avatar URL
+            // Update user avatar URL with full path
             user.setAvatarUrl(fileName);
-            userRepository.save(user);
+            com.auth.entity.User savedUser = userRepository.save(user);
+            log.info("User entity saved with avatar URL: {}", fileName);
+            
+            // Ensure the changes are flushed to database immediately
+            userRepository.flush();
+            log.info("Avatar URL flushed to database");
             
             return ResponseEntity.ok(AvatarUploadResponse.builder()
                     .avatarUrl(fileName)
@@ -144,6 +156,7 @@ public class UserManagementController {
                     .build());
                     
         } catch (Exception e) {
+            log.error("Error uploading avatar: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to upload avatar: " + e.getMessage());
         }
     }
@@ -153,6 +166,7 @@ public class UserManagementController {
      */
     @DeleteMapping("/{id}/avatar")
     @PreAuthorize("isAuthenticated()")
+    @Transactional
     public ResponseEntity<Void> deleteAvatar(
             @PathVariable Long id,
             HttpServletRequest request) {
@@ -193,6 +207,9 @@ public class UserManagementController {
                 // Remove avatar URL from user
                 user.setAvatarUrl(null);
                 userRepository.save(user);
+                
+                // Ensure the changes are flushed to database immediately
+                userRepository.flush();
             }
             
             return ResponseEntity.noContent().build();
